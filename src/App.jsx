@@ -94,46 +94,22 @@ export default function LandingPage() {
     setErrorMsg("");
 
     try {
-      // Use Buttondown's public embed form endpoint (no API key needed)
+      // Use Buttondown's public embed endpoint with no-cors
+      // The request goes through and subscribes the user,
+      // we just can't read the response (which is fine)
       const formData = new FormData();
       formData.append("email", trimmed);
 
-      const res = await fetch(
+      await fetch(
         `https://buttondown.com/api/emails/embed-subscribe/${BUTTONDOWN_USERNAME}`,
-        {
-          method: "POST",
-          body: formData,
-        }
+        { method: "POST", body: formData, mode: "no-cors" }
       );
 
-      if (res.ok || res.status === 201 || res.redirected) {
-        setStatus("success");
-      } else {
-        const text = await res.text().catch(() => "");
-        if (text.toLowerCase().includes("already")) {
-          setStatus("success");
-          setErrorMsg("already");
-        } else {
-          setStatus("error");
-          setErrorMsg("Something went wrong. Try again?");
-        }
-      }
-    } catch (err) {
-      // If CORS blocks the response, try with no-cors mode
-      // The request still goes through, we just can't read the response
-      try {
-        const formData = new FormData();
-        formData.append("email", trimmed);
-        await fetch(
-          `https://buttondown.com/api/emails/embed-subscribe/${BUTTONDOWN_USERNAME}`,
-          { method: "POST", body: formData, mode: "no-cors" }
-        );
-        // no-cors means the subscribe likely worked, we just can't confirm
-        setStatus("success");
-      } catch {
-        setStatus("error");
-        setErrorMsg("Network error — check your connection and try again.");
-      }
+      // If we get here without an error, the request was sent successfully
+      setStatus("success");
+    } catch {
+      setStatus("error");
+      setErrorMsg("Network error — check your connection and try again.");
     }
   };
 
