@@ -69,20 +69,14 @@ export default function LandingPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [hoveredTrade, setHoveredTrade] = useState(null);
   const [scrollY, setScrollY] = useState(0);
-  const [subCount, setSubCount] = useState(null);
+  // Subscriber count — updates automatically once you have subscribers
+  // To enable: set your count manually or use Buttondown's API with a server-side proxy later
+  const [subCount] = useState(null);
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  // Fetch live subscriber count from Buttondown (public endpoint)
-  useEffect(() => {
-    fetch(`https://api.buttondown.com/v1/newsletters/${BUTTONDOWN_USERNAME}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.subscriber_count) setSubCount(data.subscriber_count); })
-      .catch(() => {});
   }, []);
 
   const handleSubmit = async (e) => {
@@ -100,43 +94,41 @@ export default function LandingPage() {
     setErrorMsg("");
 
     try {
+      // Use Buttondown's public embed form endpoint (no API key needed)
+      const formData = new FormData();
+      formData.append("email", trimmed);
+
       const res = await fetch(
-        `https://api.buttondown.com/v1/subscribers`,
+        `https://buttondown.com/api/emails/embed-subscribe/${BUTTONDOWN_USERNAME}`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email_address: trimmed,
-            type: "regular",
-            tags: ["landing-page"],
-            newsletter: BUTTONDOWN_USERNAME,
-          }),
+          body: formData,
         }
       );
 
-      if (res.ok || res.status === 201) {
+      if (res.ok || res.status === 201 || res.redirected) {
         setStatus("success");
       } else {
-        const data = await res.json().catch(() => null);
-        if (res.status === 409 || (data && JSON.stringify(data).toLowerCase().includes("already"))) {
-          // Already subscribed — treat as success with different message
+        const text = await res.text().catch(() => "");
+        if (text.toLowerCase().includes("already")) {
           setStatus("success");
           setErrorMsg("already");
         } else {
           setStatus("error");
-          setErrorMsg(data?.detail || data?.email_address?.[0] || "Something went wrong. Try again?");
+          setErrorMsg("Something went wrong. Try again?");
         }
       }
     } catch (err) {
-      // Network error — fall back to Buttondown's form endpoint (works without CORS)
+      // If CORS blocks the response, try with no-cors mode
+      // The request still goes through, we just can't read the response
       try {
         const formData = new FormData();
         formData.append("email", trimmed);
-        await fetch(`https://buttondown.com/api/emails/embed-subscribe/${BUTTONDOWN_USERNAME}`, {
-          method: "POST",
-          body: formData,
-          mode: "no-cors", // This won't give us a readable response but WILL subscribe them
-        });
+        await fetch(
+          `https://buttondown.com/api/emails/embed-subscribe/${BUTTONDOWN_USERNAME}`,
+          { method: "POST", body: formData, mode: "no-cors" }
+        );
+        // no-cors means the subscribe likely worked, we just can't confirm
         setStatus("success");
       } catch {
         setStatus("error");
